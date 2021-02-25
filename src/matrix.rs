@@ -1,6 +1,6 @@
-use crate::utils::{delete_icon, edit_icon};
+use crate::utils::{delete_icon, edit_icon, new_icon};
 use glucose::DMatrix;
-use iced::{button, text_input, Align, Button, Column, Element, Row, Text, TextInput};
+use iced::{button, text_input, Align, Button, Column, Element, Length, Row, Text, TextInput};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum IcedMatrixOperation {
@@ -39,13 +39,19 @@ impl Default for IcedMatrixOperation {
 
 #[derive(Debug, Clone)]
 pub enum IcedMatrixState {
+    Uninitialized {
+        new_button: button::State,
+    },
+    Initializing {
+        text_input: text_input::State,
+        cancel_button: button::State,
+    },
     Display {
         edit_button: button::State,
     },
     Editing {
         text_input: text_input::State,
         delete_button: button::State,
-        finish_button: button::State,
     },
 }
 
@@ -59,42 +65,62 @@ impl Default for IcedMatrixState {
 
 #[derive(Debug, Clone, Default)]
 pub struct IcedMatrix {
-    mat: DMatrix<f64>,
+    mat: Option<DMatrix<f64>>,
     edit_text: String,
-    grid: Vec<String>,
     state: IcedMatrixState,
 }
 
 #[derive(Debug, Clone)]
 pub enum MatrixMessage {
-    EditedValue(String),
-    SaveMatrix,
-    Edit,
+    Create,
     Finish,
+    Cancel,
+
+    Edit,
+    EditedValue(String),
     Delete,
 }
 
 impl IcedMatrix {
-    pub fn new(size: (usize, usize)) -> Self {
+    pub fn new() -> Self {
         IcedMatrix {
-            mat: DMatrix::default_with_size(size),
+            mat: None,
             edit_text: String::default(),
-            grid: vec![String::from("0.0"); size.0 * size.1],
+            state: IcedMatrixState::Uninitialized {
+                new_button: button::State::new(),
+            },
+        }
+    }
+
+    pub fn from_matrix(matrix: DMatrix<f64>) -> Self {
+        IcedMatrix {
+            mat: Some(matrix),
+            edit_text: "".to_string(),
             state: IcedMatrixState::Display {
-                edit_button: button::State::new(),
+                edit_button: Default::default(),
             },
         }
     }
 
     pub fn update(&mut self, message: MatrixMessage) {
         match message {
-            MatrixMessage::SaveMatrix => {
-                let mut counter = 0;
-                for m in 0..self.mat.size.0 {
-                    for n in 0..self.mat.size.1 {
-                        self.mat.data[n][m] = self.grid[counter].parse().unwrap();
-                        counter += 1;
-                    }
+            MatrixMessage::Create => {
+                self.state = IcedMatrixState::Initializing {
+                    text_input: text_input::State::focused(),
+                    cancel_button: button::State::new(),
+                }
+            }
+            MatrixMessage::Finish => {
+                self.mat = Some(DMatrix::<f64>::from(self.edit_text.as_str()));
+                println!("{:?}", self.mat.as_ref().unwrap());
+                self.state = IcedMatrixState::Display {
+                    edit_button: button::State::new(),
+                }
+            }
+            MatrixMessage::Cancel => {
+                self.edit_text.clear();
+                self.state = IcedMatrixState::Uninitialized {
+                    new_button: button::State::new(),
                 }
             }
             MatrixMessage::EditedValue(content) => {
@@ -104,71 +130,95 @@ impl IcedMatrix {
                 self.state = IcedMatrixState::Editing {
                     text_input: text_input::State::focused(),
                     delete_button: button::State::new(),
-                    finish_button: button::State::new(),
                 }
             }
-            MatrixMessage::Finish => {
-                self.state = IcedMatrixState::Display {
-                    edit_button: button::State::new(),
+            MatrixMessage::Delete => {
+                self.edit_text.clear();
+                self.state = IcedMatrixState::Uninitialized {
+                    new_button: Default::default(),
                 }
             }
-            MatrixMessage::Delete => {}
         }
     }
 
     pub fn view(&mut self) -> Element<MatrixMessage> {
-        let mut values = self.grid.iter().peekable();
-        let mut chunked: Vec<Vec<&String>> = Vec::new();
-        while values.peek().is_some() {
-            let chunk = values.by_ref().take(self.mat.size.0).collect();
-            chunked.push(chunk)
-        }
-
-        let row = chunked.iter().fold(
-            Row::new().spacing(10).align_items(Align::Center),
-            |row, chunk| {
-                row.push(
-                    chunk
-                        .iter()
-                        .fold(Column::new(), |col, item| col.push(Text::new(*item))),
-                )
-            },
-        );
         match &mut self.state {
-            IcedMatrixState::Display { edit_button } => Column::new()
-                .push(Button::new(edit_button, edit_icon()).on_press(MatrixMessage::Edit))
-                .push(row)
+            IcedMatrixState::Uninitialized { new_button } => Column::new()
+                .align_items(Align::Center)
+                .push(
+                    Button::new(
+                        new_button,
+                        Row::new().push(new_icon()).push(Text::new("New")),
+                    )
+                    .on_press(MatrixMessage::Create),
+                )
                 .into(),
+            IcedMatrixState::Initializing {
+                text_input,
+                cancel_button,
+            } => Column::new()
+                .width(Length::Units(200))
+                .push(
+                    Row::new().push(
+                        Button::new(
+                            cancel_button,
+                            Row::new().push(delete_icon()).push(Text::new("Cancel")),
+                        )
+                        .on_press(MatrixMessage::Cancel),
+                    ),
+                )
+                .push(
+                    TextInput::new(text_input, "", &self.edit_text, MatrixMessage::EditedValue)
+                        .on_submit(MatrixMessage::Finish),
+                )
+                .into(),
+            IcedMatrixState::Display { edit_button } => {
+                let string_mat = self.mat.as_ref().unwrap().to_string_vec();
+
+                let row = string_mat.data.iter().fold(
+                    Row::new().spacing(10).align_items(Align::Center),
+                    |row, chunk| {
+                        row.push(
+                            chunk
+                                .iter()
+                                .fold(Column::new(), |col, item| col.push(Text::new(item))),
+                        )
+                    },
+                );
+                Column::new()
+                    .push(Button::new(edit_button, edit_icon()).on_press(MatrixMessage::Edit))
+                    .push(row)
+                    .into()
+            }
             IcedMatrixState::Editing {
                 delete_button,
                 text_input,
-                finish_button,
-            } => {
-                let input =
-                    TextInput::new(text_input, "", &self.edit_text, MatrixMessage::EditedValue);
-
-                Column::new()
-                    .push(
-                        Row::new()
-                            .push(
-                                Button::new(
-                                    delete_button,
-                                    Row::new()
-                                        .spacing(10)
-                                        .push(delete_icon())
-                                        .push(Text::new("Delete")),
-                                )
-                                .on_press(MatrixMessage::Delete),
-                            )
-                            .push(
-                                Button::new(finish_button, edit_icon())
-                                    .on_press(MatrixMessage::Finish),
-                            ),
-                    )
-                    .push(row)
-                    .push(input)
-                    .into()
-            }
+            } => Column::new()
+                .width(Length::Units(200))
+                .push(
+                    Row::new().push(
+                        Button::new(
+                            delete_button,
+                            Row::new()
+                                .spacing(10)
+                                .push(delete_icon())
+                                .push(Text::new("Delete")),
+                        )
+                        .on_press(MatrixMessage::Delete),
+                    ),
+                )
+                .push(
+                    TextInput::new(text_input, "", &self.edit_text, MatrixMessage::EditedValue)
+                        .on_submit(MatrixMessage::Finish),
+                )
+                .into(),
         }
+    }
+    pub fn is_initialized(&self) -> bool {
+        self.mat.is_some()
+    }
+
+    pub fn get_matrix_unchecked(&self) -> DMatrix<f64> {
+        self.mat.clone().unwrap()
     }
 }

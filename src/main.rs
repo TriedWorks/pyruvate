@@ -1,13 +1,11 @@
 use crate::errors::LoadError;
 use crate::matrix::{IcedMatrix, IcedMatrixOperation, MatrixMessage};
 use crate::utils::loading_message;
-use glucose::*;
 use iced::{
-    button, executor, pick_list, scrollable, text_input, Align, Application, Button, Column,
-    Command, Container, Element, Font, HorizontalAlignment, Length, PickList, Row, Scrollable,
+    button, executor, pick_list, scrollable, Align, Application, Button, Column,
+    Command, Element, HorizontalAlignment, Length, PickList, Row, Scrollable,
     Settings, Text,
 };
-use std::error::Error;
 
 pub mod errors;
 pub mod matrix;
@@ -28,8 +26,9 @@ pub struct State {
     scroll: scrollable::State,
     matrices: Vec<IcedMatrix>,
     selected_mat_op: IcedMatrixOperation,
+    calculate_button: button::State,
     matrix_op: pick_list::State<IcedMatrixOperation>,
-    result: IcedMatrix,
+    result: Option<IcedMatrix>,
 }
 
 impl State {
@@ -41,10 +40,9 @@ impl State {
 #[derive(Debug, Clone)]
 pub enum Message {
     Loaded(Result<State, LoadError>),
-    InputChanged(String, usize),
     MatrixMessage(usize, MatrixMessage),
     MatrixOpSelected(IcedMatrixOperation),
-    InitMatrix((usize, usize)),
+    MatrixCalculate,
     None,
 }
 
@@ -71,10 +69,11 @@ impl Application for Pyruvate {
                     Message::Loaded(Ok(state)) => {
                         *self = Pyruvate::Loaded(State {
                             scroll: state.scroll,
-                            matrices: vec![IcedMatrix::new((3, 3))],
+                            matrices: vec![IcedMatrix::new(), IcedMatrix::new()],
                             selected_mat_op: Default::default(),
+                            calculate_button: Default::default(),
                             matrix_op: Default::default(),
-                            result: IcedMatrix::new((3, 3)),
+                            result: None,
                         });
                     }
                     Message::Loaded(Err(_)) => {
@@ -86,11 +85,6 @@ impl Application for Pyruvate {
             }
             Pyruvate::Loaded(state) => {
                 match message {
-                    Message::InputChanged(value, index) => {}
-                    Message::InitMatrix(size) => state.matrices.push(IcedMatrix::new(size)),
-                    Message::MatrixMessage(id, MatrixMessage::Delete) => {
-                        state.matrices.remove(id);
-                    }
                     Message::MatrixMessage(id, matrix_message) => {
                         if let Some(matrix) = state.matrices.get_mut(id) {
                             matrix.update(matrix_message)
@@ -98,6 +92,31 @@ impl Application for Pyruvate {
                     }
                     Message::MatrixOpSelected(op) => {
                         state.selected_mat_op = op;
+                    }
+                    Message::MatrixCalculate => {
+                        if state.matrices[0].is_initialized() && state.matrices[1].is_initialized()
+                        {
+                            match state.selected_mat_op {
+                                IcedMatrixOperation::Add => {
+                                    state.result = Some(IcedMatrix::from_matrix(
+                                        state.matrices[0].get_matrix_unchecked()
+                                            + state.matrices[1].get_matrix_unchecked(),
+                                    ))
+                                }
+                                IcedMatrixOperation::Sub => {
+                                    state.result = Some(IcedMatrix::from_matrix(
+                                        state.matrices[0].get_matrix_unchecked()
+                                            - state.matrices[1].get_matrix_unchecked(),
+                                    ))
+                                }
+                                IcedMatrixOperation::Mul => {
+                                    state.result = Some(IcedMatrix::from_matrix(
+                                        state.matrices[0].get_matrix_unchecked()
+                                            * state.matrices[1].get_matrix_unchecked(),
+                                    ))
+                                }
+                            }
+                        }
                     }
                     _ => {}
                 }
@@ -113,6 +132,7 @@ impl Application for Pyruvate {
                 scroll,
                 matrices,
                 selected_mat_op,
+                calculate_button,
                 matrix_op,
                 result,
             }) => {
@@ -133,19 +153,42 @@ impl Application for Pyruvate {
                     },
                 );
 
-                let mat_op_selecter = PickList::new(
+                let mat_op_selector = Row::new().push(PickList::new(
                     matrix_op,
                     &IcedMatrixOperation::ALL[..],
                     Some(*selected_mat_op),
                     Message::MatrixOpSelected,
-                );
+                )).push(
+                    Button::new(calculate_button, Text::new("Calculate"))
+                        .on_press(Message::MatrixCalculate));
+
+                let maybe_result =
+                    match result {
+                        None => Row::new().push(Text::new("")),
+                        Some(mat) => {
+                            let string_mat = mat.get_matrix_unchecked().to_string_vec();
+                            string_mat
+                                .data
+                                .iter()
+                                .fold(
+                                    Row::new().spacing(10).align_items(Align::Center),
+                                    |row, chunk| {
+                                        row.push(chunk.iter().fold(Column::new(), |col, item| {
+                                            col.push(Text::new(item))
+                                        }))
+                                    },
+                                )
+                                .into()
+                        }
+                    };
 
                 let content = Column::new()
                     .align_items(Align::Center)
                     .spacing(20)
                     .push(title)
-                    .push(mat_op_selecter)
-                    .push(row);
+                    .push(mat_op_selector)
+                    .push(row)
+                    .push(maybe_result);
 
                 Scrollable::new(scroll).padding(40).push(content).into()
             }

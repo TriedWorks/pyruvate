@@ -1158,9 +1158,9 @@ dependencies = [
 
 [[package]]
 name = "glucose"
-version = "0.1.4"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5a9fd346535711382f44b8bcd6aca3ca2e1d3505d1216c945769a4811b1c45e"
+checksum = "602c51deec9e7ca6343263b76575be700c34542f8f357d1077525338fe0d87c9"
 dependencies = [
  "paste",
  "serde_test",
@@ -1969,7 +1969,7 @@ dependencies = [
 
 [[package]]
 name = "pyruvate"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-std",
  "glucose",

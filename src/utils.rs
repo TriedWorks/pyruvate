@@ -26,6 +26,10 @@ pub fn icon(unicode: char) -> Text {
         .size(20)
 }
 
+pub fn new_icon() -> Text {
+    icon('\u{002B}')
+}
+
 pub fn edit_icon() -> Text {
     icon('\u{F303}')
 }
