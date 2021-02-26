@@ -1969,12 +1969,11 @@ dependencies = [
 
 [[package]]
 name = "pyruvate"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "async-std",
  "glucose",
  "iced",
- "iced_web",
  "serde",
 ]
 

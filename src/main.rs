@@ -1,7 +1,7 @@
 #![windows_subsystem = "windows"]
 
 use crate::errors::LoadError;
-use crate::group_theory::GroupTheoryState;
+use crate::group_theory::{GroupTheoryMessage, GroupTheoryState};
 use crate::matrix::{MatrixCalculationState, MatrixMessage};
 use crate::utils::loading_message;
 use iced::{
@@ -58,6 +58,7 @@ impl State {
 pub enum Message {
     Loaded(Result<State, LoadError>),
     MatrixMessage(MatrixMessage),
+    GroupTheoryMessage(GroupTheoryMessage),
     SwitchState(SubState),
     None,
 }
@@ -98,13 +99,17 @@ impl Application for Pyruvate {
             }
             Pyruvate::Loaded(state) => {
                 match message {
+                    Message::SwitchState(new) => {
+                        state.current = new;
+                    }
                     Message::MatrixMessage(sub_message) => match &mut state.current {
                         SubState::Matrix(sub_state) => sub_state.update(sub_message),
                         _ => {}
                     },
-                    Message::SwitchState(new) => {
-                        state.current = new;
-                    }
+                    Message::GroupTheoryMessage(sub_message) => match &mut state.current {
+                        SubState::GroupTheory(sub_state) => sub_state.update(sub_message),
+                        _ => {}
+                    },
                     _ => {}
                 }
                 Command::none()
@@ -130,12 +135,12 @@ impl Application for Pyruvate {
                     SubState::None => Column::new()
                         .push(Text::new("Please Select Something"))
                         .into(),
-                    SubState::Matrix(matrix_state) => matrix_state
+                    SubState::Matrix(sub_state) => sub_state
                         .view()
                         .map(move |message| Message::MatrixMessage(message)),
-                    SubState::GroupTheory(_) => {
-                        Column::new().push(Text::new("Unimplemented")).into()
-                    }
+                    SubState::GroupTheory(sub_state) => sub_state
+                        .view()
+                        .map(move |message| Message::GroupTheoryMessage(message)),
                 };
                 let controls = controls.view();
 
