@@ -1,6 +1,8 @@
 use crate::utils::{delete_icon, edit_icon, new_icon};
 use glucose::DMatrix;
-use iced::{button, text_input, Align, Button, Column, Element, Length, Row, Text, TextInput, Radio};
+use iced::{
+    button, text_input, Align, Button, Column, Element, Length, Radio, Row, Text, TextInput,
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum IcedMatrixOperation {
@@ -181,10 +183,12 @@ impl MatrixCalculationState {
                     .align_items(Align::Center)
                     .push(
                         Button::new(&mut self.calculate_button, Text::new("Calculate"))
-                        .on_press(MatrixMessage::MatrixCalculate)
+                            .on_press(MatrixMessage::MatrixCalculate),
                     )
-                    .push(Button::new(&mut self.reuse_button, Text::new("Reuse"))
-                        .on_press(MatrixMessage::ReuseResult))
+                    .push(
+                        Button::new(&mut self.reuse_button, Text::new("Reuse"))
+                            .on_press(MatrixMessage::ReuseResult),
+                    ),
             );
 
         let maybe_result = match &self.result {
@@ -236,9 +240,9 @@ impl MatrixCalculationState {
                         operation,
                         operation,
                         selection,
-                        MatrixMessage::MatrixOpSelected
+                        MatrixMessage::MatrixOpSelected,
                     ))
-                }
+                },
             ))
     }
 }
