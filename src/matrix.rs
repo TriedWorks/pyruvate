@@ -91,8 +91,9 @@ impl MatrixCalculationState {
                                     self.matrices[0].get_matrix_unchecked()
                                         + self.matrices[1].get_matrix_unchecked(),
                                 ))
+                            } else {
+                                self.error_message = Some(String::from("Matrix sizes not equal"));
                             }
-                            self.error_message = Some(String::from("Matrix sizes not equal"));
                         }
                         IcedMatrixOperation::Sub => {
                             if self.matrices[0].get_size_unchecked()
