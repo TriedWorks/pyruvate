@@ -1,15 +1,22 @@
 use crate::utils::{delete_icon, edit_icon, new_icon};
 use glucose::DMatrix;
-use iced::{
-    button, pick_list, text_input, Align, Button, Column, Element, Length, PickList, Row, Text,
-    TextInput,
-};
+use iced::{button, text_input, Align, Button, Column, Element, Length, Row, Text, TextInput, Radio};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum IcedMatrixOperation {
     Add,
     Sub,
     Mul,
+}
+
+impl From<IcedMatrixOperation> for String {
+    fn from(op: IcedMatrixOperation) -> Self {
+        String::from(match op {
+            IcedMatrixOperation::Add => "Addition",
+            IcedMatrixOperation::Sub => "Subtraction",
+            IcedMatrixOperation::Mul => "Multiplication",
+        })
+    }
 }
 
 impl std::fmt::Display for IcedMatrixOperation {
@@ -45,14 +52,15 @@ pub enum MatrixMessage {
     IcedMatrixMessage(usize, IcedMatrixMessage),
     MatrixOpSelected(IcedMatrixOperation),
     MatrixCalculate,
+    ReuseResult,
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct MatrixCalculationState {
     matrices: Vec<IcedMatrix>,
-    selected_mat_op: IcedMatrixOperation,
+    selected_mat_op: Option<IcedMatrixOperation>,
     calculate_button: button::State,
-    matrix_op: pick_list::State<IcedMatrixOperation>,
+    reuse_button: button::State,
     result: Option<IcedMatrix>,
     error_message: Option<String>,
 }
@@ -63,7 +71,7 @@ impl MatrixCalculationState {
             matrices: vec![IcedMatrix::new(), IcedMatrix::new()],
             selected_mat_op: Default::default(),
             calculate_button: Default::default(),
-            matrix_op: Default::default(),
+            reuse_button: Default::default(),
             result: None,
             error_message: None,
         }
@@ -77,13 +85,13 @@ impl MatrixCalculationState {
                 }
             }
             MatrixMessage::MatrixOpSelected(op) => {
-                self.selected_mat_op = op;
+                self.selected_mat_op = Some(op);
             }
             MatrixMessage::MatrixCalculate => {
                 self.error_message = None;
                 if self.matrices[0].is_initialized() && self.matrices[1].is_initialized() {
                     match self.selected_mat_op {
-                        IcedMatrixOperation::Add => {
+                        Some(IcedMatrixOperation::Add) => {
                             if self.matrices[0].get_size_unchecked()
                                 == self.matrices[1].get_size_unchecked()
                             {
@@ -95,7 +103,7 @@ impl MatrixCalculationState {
                                 self.error_message = Some(String::from("Matrix sizes not equal"));
                             }
                         }
-                        IcedMatrixOperation::Sub => {
+                        Some(IcedMatrixOperation::Sub) => {
                             if self.matrices[0].get_size_unchecked()
                                 == self.matrices[1].get_size_unchecked()
                             {
@@ -107,7 +115,7 @@ impl MatrixCalculationState {
                                 self.error_message = Some(String::from("Matrix sizes not equal"));
                             }
                         }
-                        IcedMatrixOperation::Mul => {
+                        Some(IcedMatrixOperation::Mul) => {
                             if self.matrices[0].get_size_unchecked().1
                                 == self.matrices[1].get_size_unchecked().0
                             {
@@ -120,9 +128,19 @@ impl MatrixCalculationState {
                                     Some(String::from("column size of mat1 != row size of mat2"));
                             }
                         }
+                        None => {
+                            self.error_message = Some(String::from("please select an operation"))
+                        }
                     }
                 } else {
                     self.error_message = Some(String::from("Matrices not initialized"))
+                }
+            }
+            MatrixMessage::ReuseResult => {
+                if self.result.is_some() {
+                    self.matrices[0] = self.result.clone().unwrap()
+                } else {
+                    self.error_message = Some(String::from("Please calculate a result first"))
                 }
             }
         }
@@ -130,7 +148,7 @@ impl MatrixCalculationState {
 
     pub fn view(&mut self) -> Element<MatrixMessage> {
         let title = Text::new("Matrices").size(30).color([0.0, 0.0, 0.0]);
-        let row = self.matrices.iter_mut().enumerate().fold(
+        let matrices = self.matrices.iter_mut().enumerate().fold(
             Row::new().spacing(30).align_items(Align::Center),
             |row, (i, matrix)| {
                 row.push(
@@ -141,17 +159,32 @@ impl MatrixCalculationState {
             },
         );
 
+        // let mat_op_selector = Row::new()
+        //     .spacing(20)
+        //     .push(PickList::new(
+        //         &mut self.matrix_op,
+        //         &IcedMatrixOperation::ALL[..],
+        //         Some(self.selected_mat_op),
+        //         MatrixMessage::MatrixOpSelected,
+        //     ))
+        //     .push(
+        //         Button::new(&mut self.calculate_button, Text::new("Calculate"))
+        //             .on_press(MatrixMessage::MatrixCalculate),
+        //     );
+
         let mat_op_selector = Row::new()
-            .spacing(20)
-            .push(PickList::new(
-                &mut self.matrix_op,
-                &IcedMatrixOperation::ALL[..],
-                Some(self.selected_mat_op),
-                MatrixMessage::MatrixOpSelected,
-            ))
+            .padding(20)
+            .align_items(Align::Center)
+            .push(Self::selection_column(self.selected_mat_op))
             .push(
-                Button::new(&mut self.calculate_button, Text::new("Calculate"))
-                    .on_press(MatrixMessage::MatrixCalculate),
+                Column::new()
+                    .align_items(Align::Center)
+                    .push(
+                        Button::new(&mut self.calculate_button, Text::new("Calculate"))
+                        .on_press(MatrixMessage::MatrixCalculate)
+                    )
+                    .push(Button::new(&mut self.reuse_button, Text::new("Reuse"))
+                        .on_press(MatrixMessage::ReuseResult))
             );
 
         let maybe_result = match &self.result {
@@ -185,10 +218,28 @@ impl MatrixCalculationState {
             .spacing(20)
             .push(title)
             .push(mat_op_selector)
-            .push(row)
+            .push(matrices)
             .push(maybe_result)
             .push(maybe_error)
             .into()
+    }
+
+    fn selection_column<'a>(selection: Option<IcedMatrixOperation>) -> Column<'a, MatrixMessage> {
+        Column::new()
+            .padding(5)
+            .spacing(5)
+            .push(Text::new("Select an operation"))
+            .push(IcedMatrixOperation::ALL.iter().cloned().fold(
+                Column::new().padding(5).spacing(5),
+                |column, operation| {
+                    column.push(Radio::new(
+                        operation,
+                        operation,
+                        selection,
+                        MatrixMessage::MatrixOpSelected
+                    ))
+                }
+            ))
     }
 }
 
