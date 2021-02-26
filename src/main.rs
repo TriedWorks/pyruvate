@@ -1,13 +1,14 @@
 use crate::errors::LoadError;
-use crate::matrix::{IcedMatrix, IcedMatrixOperation, MatrixMessage};
+use crate::group_theory::GroupTheoryState;
+use crate::matrix::{MatrixCalculationState, MatrixMessage};
 use crate::utils::loading_message;
 use iced::{
-    button, executor, pick_list, scrollable, Align, Application, Button, Column,
-    Command, Element, HorizontalAlignment, Length, PickList, Row, Scrollable,
-    Settings, Text,
+    button, executor, scrollable, Align, Application, Button, Column, Command, Container, Element,
+    HorizontalAlignment, Length, Row, Scrollable, Settings, Text,
 };
 
 pub mod errors;
+pub mod group_theory;
 pub mod matrix;
 pub mod utils;
 
@@ -21,14 +22,28 @@ pub enum Pyruvate {
     Loaded(State),
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct State {
     scroll: scrollable::State,
-    matrices: Vec<IcedMatrix>,
-    selected_mat_op: IcedMatrixOperation,
-    calculate_button: button::State,
-    matrix_op: pick_list::State<IcedMatrixOperation>,
-    result: Option<IcedMatrix>,
+    controls: Controls,
+    current: SubState,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            scroll: scrollable::State::new(),
+            controls: Controls::default(),
+            current: SubState::None,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum SubState {
+    None,
+    Matrix(MatrixCalculationState),
+    GroupTheory(GroupTheoryState),
 }
 
 impl State {
@@ -40,9 +55,8 @@ impl State {
 #[derive(Debug, Clone)]
 pub enum Message {
     Loaded(Result<State, LoadError>),
-    MatrixMessage(usize, MatrixMessage),
-    MatrixOpSelected(IcedMatrixOperation),
-    MatrixCalculate,
+    MatrixMessage(MatrixMessage),
+    SwitchState(SubState),
     None,
 }
 
@@ -69,11 +83,8 @@ impl Application for Pyruvate {
                     Message::Loaded(Ok(state)) => {
                         *self = Pyruvate::Loaded(State {
                             scroll: state.scroll,
-                            matrices: vec![IcedMatrix::new(), IcedMatrix::new()],
-                            selected_mat_op: Default::default(),
-                            calculate_button: Default::default(),
-                            matrix_op: Default::default(),
-                            result: None,
+                            controls: state.controls,
+                            current: state.current,
                         });
                     }
                     Message::Loaded(Err(_)) => {
@@ -85,38 +96,12 @@ impl Application for Pyruvate {
             }
             Pyruvate::Loaded(state) => {
                 match message {
-                    Message::MatrixMessage(id, matrix_message) => {
-                        if let Some(matrix) = state.matrices.get_mut(id) {
-                            matrix.update(matrix_message)
-                        }
-                    }
-                    Message::MatrixOpSelected(op) => {
-                        state.selected_mat_op = op;
-                    }
-                    Message::MatrixCalculate => {
-                        if state.matrices[0].is_initialized() && state.matrices[1].is_initialized()
-                        {
-                            match state.selected_mat_op {
-                                IcedMatrixOperation::Add => {
-                                    state.result = Some(IcedMatrix::from_matrix(
-                                        state.matrices[0].get_matrix_unchecked()
-                                            + state.matrices[1].get_matrix_unchecked(),
-                                    ))
-                                }
-                                IcedMatrixOperation::Sub => {
-                                    state.result = Some(IcedMatrix::from_matrix(
-                                        state.matrices[0].get_matrix_unchecked()
-                                            - state.matrices[1].get_matrix_unchecked(),
-                                    ))
-                                }
-                                IcedMatrixOperation::Mul => {
-                                    state.result = Some(IcedMatrix::from_matrix(
-                                        state.matrices[0].get_matrix_unchecked()
-                                            * state.matrices[1].get_matrix_unchecked(),
-                                    ))
-                                }
-                            }
-                        }
+                    Message::MatrixMessage(sub_message) => match &mut state.current {
+                        SubState::Matrix(sub_state) => sub_state.update(sub_message),
+                        _ => {}
+                    },
+                    Message::SwitchState(new) => {
+                        state.current = new;
                     }
                     _ => {}
                 }
@@ -130,67 +115,40 @@ impl Application for Pyruvate {
             Pyruvate::Loading => loading_message(),
             Pyruvate::Loaded(State {
                 scroll,
-                matrices,
-                selected_mat_op,
-                calculate_button,
-                matrix_op,
-                result,
+                controls,
+                current,
             }) => {
-                let title = Text::new("Matrices")
+                let title = Text::new("Pyruvate")
                     .width(Length::Fill)
-                    .size(100)
+                    .size(40)
                     .color([0.0, 0.0, 0.0])
                     .horizontal_alignment(HorizontalAlignment::Center);
 
-                let row = matrices.iter_mut().enumerate().fold(
-                    Row::new().spacing(30).align_items(Align::Center),
-                    |row, (i, matrix)| {
-                        row.push(
-                            matrix
-                                .view()
-                                .map(move |message| Message::MatrixMessage(i, message)),
-                        )
-                    },
-                );
-
-                let mat_op_selector = Row::new().push(PickList::new(
-                    matrix_op,
-                    &IcedMatrixOperation::ALL[..],
-                    Some(*selected_mat_op),
-                    Message::MatrixOpSelected,
-                )).push(
-                    Button::new(calculate_button, Text::new("Calculate"))
-                        .on_press(Message::MatrixCalculate));
-
-                let maybe_result =
-                    match result {
-                        None => Row::new().push(Text::new("")),
-                        Some(mat) => {
-                            let string_mat = mat.get_matrix_unchecked().to_string_vec();
-                            string_mat
-                                .data
-                                .iter()
-                                .fold(
-                                    Row::new().spacing(10).align_items(Align::Center),
-                                    |row, chunk| {
-                                        row.push(chunk.iter().fold(Column::new(), |col, item| {
-                                            col.push(Text::new(item))
-                                        }))
-                                    },
-                                )
-                                .into()
-                        }
-                    };
+                let sub_state_content = match current {
+                    SubState::None => Column::new()
+                        .push(Text::new("Please Select Something"))
+                        .into(),
+                    SubState::Matrix(matrix_state) => matrix_state
+                        .view()
+                        .map(move |message| Message::MatrixMessage(message)),
+                    SubState::GroupTheory(_) => {
+                        Column::new().push(Text::new("Unimplemented")).into()
+                    }
+                };
+                let controls = controls.view();
 
                 let content = Column::new()
-                    .align_items(Align::Center)
                     .spacing(20)
+                    .max_width(800)
+                    .align_items(Align::Center)
                     .push(title)
-                    .push(mat_op_selector)
-                    .push(row)
-                    .push(maybe_result);
+                    .push(controls)
+                    .push(sub_state_content);
 
-                Scrollable::new(scroll).padding(40).push(content).into()
+                Scrollable::new(scroll)
+                    .padding(40)
+                    .push(Container::new(content).width(Length::Fill).center_x())
+                    .into()
             }
         }
     }
@@ -200,8 +158,27 @@ impl Application for Pyruvate {
 pub struct Controls {
     home_button: button::State,
     matrices_button: button::State,
+    group_theory_button: button::State,
 }
 
-// impl Controls {
-//     fn view(&mut self, )
-// }
+impl Controls {
+    fn view(&mut self) -> Row<Message> {
+        Row::new()
+            .spacing(10)
+            .align_items(Align::Center)
+            .push(
+                Button::new(&mut self.home_button, Text::new("Home"))
+                    .on_press(Message::SwitchState(SubState::None)),
+            )
+            .push(
+                Button::new(&mut self.matrices_button, Text::new("Matrices")).on_press(
+                    Message::SwitchState(SubState::Matrix(MatrixCalculationState::new())),
+                ),
+            )
+            .push(
+                Button::new(&mut self.group_theory_button, Text::new("Group Theory")).on_press(
+                    Message::SwitchState(SubState::GroupTheory(GroupTheoryState::new())),
+                ),
+            )
+    }
+}
