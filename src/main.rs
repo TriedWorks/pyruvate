@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use crate::errors::LoadError;
 use crate::group_theory::GroupTheoryState;
 use crate::matrix::{MatrixCalculationState, MatrixMessage};
