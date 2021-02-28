@@ -1,6 +1,6 @@
 [package]
 name = "pyruvate"
-version = "0.1.5"
+version = "0.1.6"
 authors = ["Sebastian <Sebastian@Strobl.net>"]
 edition = "2018"
 publish = true
@@ -19,5 +19,5 @@ path = "src/main.rs"
 [dependencies]
 iced = "0.2.0"
 serde = "1.0.123"
-glucose = "0.1.8"
+glucose = "0.1.13"
 async-std = "1.9.0"

@@ -1,7 +1,7 @@
 #![windows_subsystem = "windows"]
 
 use crate::errors::LoadError;
-use crate::group_theory::{GroupTheoryMessage, GroupTheoryState};
+use crate::group_theory::{GroupTheoryMessage, IcedGroupTheory};
 use crate::matrix::{MatrixCalculationState, MatrixMessage};
 use crate::utils::loading_message;
 use iced::{
@@ -45,7 +45,7 @@ impl Default for State {
 pub enum SubState {
     None,
     Matrix(MatrixCalculationState),
-    GroupTheory(GroupTheoryState),
+    GroupTheory(IcedGroupTheory),
 }
 
 impl State {
@@ -184,7 +184,7 @@ impl Controls {
             )
             .push(
                 Button::new(&mut self.group_theory_button, Text::new("Group Theory")).on_press(
-                    Message::SwitchState(SubState::GroupTheory(GroupTheoryState::new())),
+                    Message::SwitchState(SubState::GroupTheory(IcedGroupTheory::new())),
                 ),
             )
     }
