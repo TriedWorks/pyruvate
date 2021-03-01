@@ -267,11 +267,8 @@ impl IcedGroups {
                     self.group = group(modulo, self.group_type);
                     self.possible_orders = possible_orders(modulo, self.group_type);
                     self.orders = orders(modulo, &self.group, self.group_type);
-                    if !self.group_size > 54 || self.group_type == GroupType::Additive || should_big {
-                        self.producers = producers(modulo, &self.group, self.group_type, should_big)
-                    } else {
-                        self.error_message = Some(String::from("to calculate producers bigger than 54 use 'm*b' or 'mb'"))
-                    }
+
+                    self.producers = producers(modulo, &self.group, self.group_type, should_big);
                 } else {
                     self.error_message = Some(String::from("input is not correct: num, a or num, m"))
                 }
@@ -288,46 +285,46 @@ impl IcedGroups {
         ).on_submit(IcedGroupMessage::Calculate);
 
         let content = Column::new()
-            .push(Row::new().max_width(800).push(Text::new(format!("Group Type: {:?}", self.group_type))))
+            .push(Row::new().push(Text::new(format!("Group Type: {:?}", self.group_type))))
             .push(
                 self.prime_factors.iter().fold(
-                    Row::new().max_width(800).push(Text::new("Prime Factors: ")), |row, num| {
+                    Row::new().push(Text::new("Prime Factors: ")), |row, num| {
                         row.push(Text::new(format!("{}, ", num)))
                     }
                 )
             )
-            .push(Row::new().max_width(800).push(Text::new(format!("Group Size: {}", self.group_size))))
+            .push(Row::new().push(Text::new(format!("Group Size: {}", self.group_size))))
             .push(
                 self.group_size_prime_factors.iter().fold(
-                    Row::new().max_width(800).push(Text::new("Group Size Prime Factors: ")), |row, num| {
+                    Row::new().push(Text::new("Group Size Prime Factors: ")), |row, num| {
                         row.push(Text::new(format!("{}, ", num)))
                     }
                 )
             )
             .push(
                 self.group.iter().fold(
-                    Row::new().max_width(800).push(Text::new("Coprimes: ")), |row, num| {
+                    Row::new().push(Text::new("Group Elements: ")), |row, num| {
                         row.push(Text::new(format!("{}, ", num)))
                     }
                 )
             )
             .push(
+                self.producers.iter().fold(
+                    Row::new().push(Text::new("Producers: ")), |row, num| {
+                        row.push(Text::new(format!("{:?}, ", num)))
+                    }
+                )
+            )
+            .push(
                 self.possible_orders.iter().fold(
-                    Row::new().max_width(800).push(Text::new("Possible Orders: ")), |row, num| {
+                    Row::new().push(Text::new("Possible Orders: ")), |row, num| {
                         row.push(Text::new(format!("{}, ", num)))
                     }
                 )
             )
             .push(
                 self.orders.iter().fold(
-                    Row::new().max_width(800).push(Text::new("Actual Orders: ")), |row, num| {
-                        row.push(Text::new(format!("{:?}, ", num)))
-                    }
-                )
-            )
-            .push(
-                self.producers.iter().fold(
-                    Row::new().max_width(800).push(Text::new("Producers: ")), |row, num| {
+                    Column::new().push(Text::new("Actual Orders: ")), |row, num| {
                         row.push(Text::new(format!("{:?}, ", num)))
                     }
                 )
